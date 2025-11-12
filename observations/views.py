@@ -1,0 +1,136 @@
+from django.shortcuts import render
+
+# Create your views here.
+
+# observations/views.py
+from django.shortcuts import get_object_or_404, redirect, render
+from django.views.generic import CreateView, UpdateView, ListView, DetailView, FormView
+from django.urls import reverse_lazy, reverse
+from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
+from .models import Observation
+from .forms import ObservationCreateForm, RectificationForm, VerificationForm
+from django.contrib import messages
+
+# Helper mixins
+class ObserverRequiredMixin(UserPassesTestMixin):
+    def test_func(self):
+        return self.request.user.is_authenticated and self.request.user.is_observer
+
+class IsAssignedOrManagerMixin(UserPassesTestMixin):
+    def test_func(self):
+        obj = self.get_object()
+        user = self.request.user
+        return user.is_safety_manager or (obj.assigned_to and obj.assigned_to == user)
+
+# Views
+class ObservationCreateView(LoginRequiredMixin, ObserverRequiredMixin, CreateView):
+    model = Observation
+    form_class = ObservationCreateForm
+    template_name = 'observations/observation_form.html'
+    success_url = reverse_lazy('observations:list')
+
+    def form_valid(self, form):
+        form.instance.observer = self.request.user
+        form.instance.status = 'OPEN'
+        return super().form_valid(form)
+
+class ObservationListView(LoginRequiredMixin, ListView):
+    model = Observation
+    template_name = 'observations/observation_list.html'
+    context_object_name = 'observations'
+
+    def get_queryset(self):
+        qs = super().get_queryset().select_related('location','assigned_to')
+        q = self.request.GET.get('q')
+        if q:
+            qs = qs.filter(title__icontains=q)
+        return qs.order_by('-date_observed')
+
+class ObservationDetailView(LoginRequiredMixin, DetailView):
+    model = Observation
+    template_name = 'observations/observation_detail.html'
+
+class RectificationUpdateView(LoginRequiredMixin, IsAssignedOrManagerMixin, UpdateView):
+    model = Observation
+    form_class = RectificationForm
+    template_name = 'observations/observation_form.html'
+    success_url = reverse_lazy('observations:observation_list')
+
+    # def form_valid(self, form):
+    #     form.instance.status = 'IN_PROGRESS'
+    #     return super().form_valid(form)
+    
+    def form_valid(self, form):
+        """
+        When Action Owner submits the rectification:
+        - Update rectification details, photo_after, target_date.
+        - Change status to 'AWAITING VERIFICATION'.
+        - Save the observation and redirect.
+        """
+        observation = form.save(commit=False)
+        observation.status = 'AWAITING VERIFICATION'
+        observation.save()
+        messages.success(self.request, "Rectification details submitted successfully, pending for verification!.")
+        return super().form_valid(form)
+
+    def test_func(self):
+        """
+        Restrict access so that only the Action Owner (assigned_to)
+        can access and update this observation.
+        """
+        observation = self.get_object()
+        return self.request.user == observation.assigned_to
+
+    # def form_valid(self, form):
+    #     observation = form.save(commit=False)
+    #     observation.status = 'AWAITING VERIFICATION'
+    #     observation.save()
+    #     messages.success(self.request, "Rectification details submitted successfully, pending for verification!.")
+    #     return super().form_valid(form)
+
+
+
+class VerificationView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
+    model = Observation
+    template_name = 'observations/observation_verify.html'
+    form_class = VerificationForm
+
+    def test_func(self):
+        # return self.request.user.is_safety_manager
+        return self.request.user.is_authenticated and self.request.user.is_safety_manager
+
+    def dispatch(self, request, *args, **kwargs):
+        self.observation = get_object_or_404(Observation, pk=kwargs['pk'])
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx['observation'] = self.observation
+        return ctx
+
+    def form_valid(self, form):
+        observation = form.save(commit=False)
+        action = form.cleaned_data.get('verification_action')
+
+        if action == 'approve':
+            observation.status = 'CLOSED'
+            observation.date_closed = timezone.now()
+            messages.success(self.request, "✅ Observation verified and closed successfully.")
+        else:
+            observation.status = 'IN PROGRESS'
+            messages.warning(self.request, "⚠️ Observation sent back for rework.")
+
+        observation.save()
+        return redirect('observation_list')  # redirect to your list/dashboard page
+
+    # def form_valid(self, form):
+    #     approved = form.cleaned_data['approved']
+    #     comment = form.cleaned_data['comment']
+    #     if approved:
+    #         self.observation.close()
+    #     else:
+    #         self.observation.status = 'IN_PROGRESS'
+    #         # Could store verification comment in log / model if desired; currently simple.
+    #         self.observation.save()
+    #     return redirect('observations:detail', pk=self.observation.pk)
+
