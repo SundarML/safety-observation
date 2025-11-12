@@ -23,11 +23,12 @@ class IsAssignedOrManagerMixin(UserPassesTestMixin):
         return user.is_safety_manager or (obj.assigned_to and obj.assigned_to == user)
 
 # Views
-class ObservationCreateView(LoginRequiredMixin, ObserverRequiredMixin, CreateView):
+class ObservationCreateView(LoginRequiredMixin,  CreateView):
+    #ObserverRequiredMixin,
     model = Observation
     form_class = ObservationCreateForm
     template_name = 'observations/observation_form.html'
-    success_url = reverse_lazy('observations:list')
+    success_url = reverse_lazy('observations:observation_list')
 
     def form_valid(self, form):
         form.instance.observer = self.request.user
@@ -121,7 +122,7 @@ class VerificationView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
             messages.warning(self.request, "⚠️ Observation sent back for rework.")
 
         observation.save()
-        return redirect('observation_list')  # redirect to your list/dashboard page
+        return redirect('observations:observation_list')  # redirect to your list/dashboard page
 
     # def form_valid(self, form):
     #     approved = form.cleaned_data['approved']
