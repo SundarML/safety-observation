@@ -92,7 +92,8 @@ DATABASES = {
         'NAME': BASE_DIR / 'db.sqlite3',
     }
 }
-DATABASES['default'] = dj_database_url.parse("postgresql://safety_observation_user:eYoE9PGZGR5Mbrzi5Qd0AagBHZqO6J42@dpg-d4ilbefgi27c739m3tc0-a.singapore-postgres.render.com/safety_observation")
+# database_url = os.environ.get('DATABASE_URL')
+# DATABASES['default'] = dj_database_url.parse(database_url)
 
 # below is the external db connection string for reference from render.com
 # postgresql://safety_observation_user:eYoE9PGZGR5Mbrzi5Qd0AagBHZqO6J42@dpg-d4ilbefgi27c739m3tc0-a.singapore-postgres.render.com/safety_observation

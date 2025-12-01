@@ -12,6 +12,12 @@ from .forms import ObservationCreateForm, RectificationForm, VerificationForm
 from django.contrib import messages
 from django.core.paginator import Paginator
 from django.db.models import Q
+from .models import Location
+from .forms import LocationForm
+from django.http import JsonResponse
+from django.views.decorators.http import require_POST
+from django.views.decorators.csrf import csrf_exempt
+from django.middleware.csrf import get_token
 
 # Helper mixins
 class ObserverRequiredMixin(UserPassesTestMixin):
@@ -242,3 +248,19 @@ def export_observations_csv(request):
 
     return response
 
+# Add API endpoint to create a Location
+@require_POST
+def ajax_add_location(request):
+    form = LocationForm(request.POST)
+    if form.is_valid():
+        location = form.save()
+        return JsonResponse({
+            "success": True,
+            "id": location.id,
+            "name": location.name,
+        })
+    else:
+        return JsonResponse({
+            "success": False,
+            "errors": form.errors,
+        })

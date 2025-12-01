@@ -14,5 +14,6 @@ urlpatterns = [
     # Export URLs
     path('export/csv/', views.export_observations_csv, name='export_observations_csv'),
     path('export/excel/', views.export_observations_excel, name='export_observations_excel'),
+    path('ajax/add-location/', views.ajax_add_location, name='ajax_add_location'),
 ]
 
